@@ -1,0 +1,71 @@
+// ==UserScript==
+// @name         Pokémon Center Display Queue Position
+// @namespace    http://tampermonkey.net/
+// @version      1.0
+// @description  Display queue position on Pokémon Center
+// @author       tato
+// @match        https://www.pokemoncenter.com/*
+// @grant        GM_xmlhttpRequest
+// @connect      self
+// ==/UserScript==
+
+(function() {
+    'use strict';
+
+    // Function to inject the position into the webpage
+    function displayPosition(pos) {
+        const existingDiv = document.getElementById('queue-position-display');
+        if (existingDiv) {
+            existingDiv.textContent = `Your current queue position: ${pos}`;
+        } else {
+            const posDiv = document.createElement('div');
+            posDiv.id = 'queue-position-display';
+            posDiv.style.position = 'fixed';
+            posDiv.style.top = '10px';
+            posDiv.style.right = '10px';
+            posDiv.style.backgroundColor = '#fff';
+            posDiv.style.border = '1px solid #000';
+            posDiv.style.padding = '10px';
+            posDiv.style.zIndex = '10000';
+            posDiv.textContent = `Your current queue position: ${pos}`;
+            document.body.appendChild(posDiv);
+        }
+    }
+
+    // Intercept fetch requests
+    const originalFetch = window.fetch;
+    window.fetch = function() {
+        return originalFetch.apply(this, arguments).then(response => {
+            const url = response.url || '';
+            if (url.includes('/_Incapsula_Resource?SWWRGTS=868')) {
+                response.clone().json().then(data => {
+                    if (data && data.pos !== undefined) {
+                        displayPosition(data.pos);
+                    }
+                }).catch(err => {
+                    console.error('Error parsing JSON:', err);
+                });
+            }
+            return response;
+        });
+    };
+
+    // Intercept XMLHttpRequests
+    const originalXHROpen = XMLHttpRequest.prototype.open;
+    XMLHttpRequest.prototype.open = function() {
+        this.addEventListener('load', function() {
+            const url = this.responseURL || '';
+            if (url.includes('/_Incapsula_Resource?SWWRGTS=868')) {
+                try {
+                    const data = JSON.parse(this.responseText);
+                    if (data && data.pos !== undefined) {
+                        displayPosition(data.pos);
+                    }
+                } catch (err) {
+                    console.error('Error parsing JSON:', err);
+                }
+            }
+        });
+        originalXHROpen.apply(this, arguments);
+    };
+})();
