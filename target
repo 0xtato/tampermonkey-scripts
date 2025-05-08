@@ -1,0 +1,134 @@
+// ==UserScript==
+// @name         Target Auto-Checkout Bot (Preorder + Add to Cart + Checkout)
+// @namespace    TargetBot
+// @match        https://www.target.com/*
+// @version      6.3
+// @description  Auto selects quantity, adds to cart or preorders, redirects to checkout, and completes order on Target product pages.
+// @author       tato
+// @grant        none
+// ==/UserScript==
+
+(async function () {
+    'use strict';
+
+    console.log("🚀 Target Auto-Checkout Script Running...");
+
+    // ✅ Configurable settings
+    const TARGET_QUANTITY = 3;  // Desired quantity
+    const PLACE_ORDER = true;  // Auto-place order
+    const TEST_MODE = false;  // Set to true to log actions instead of clicking
+
+    let addToCartClicked = false; // Prevents repeated clicking of "Add to Cart"
+    let checkoutInitiated = false; // Prevents duplicate redirects to checkout
+
+    // ✅ **Detect if on product page and initiate checkout**
+    if (window.location.href.includes("/p/")) {
+        console.log("🛒 Product page detected.");
+        setTimeout(checkStockAndTryATC, 3000);
+    }
+
+    if (window.location.href.includes("/checkout")) {
+        console.log("✅ Checkout Page Detected.");
+        setTimeout(continuouslyPlaceOrder, 3000);
+    }
+
+    // ✅ **Check Stock, Select Quantity & Click "Add to Cart" or "Preorder"**
+    function checkStockAndTryATC() {
+        if (addToCartClicked) return;
+
+        console.log("🔍 Checking 'Add to Cart' / 'Preorder' button status...");
+
+        const buttons = Array.from(document.querySelectorAll("button"));
+        const targetButton = buttons.find(btn =>
+            ["Add to cart", "Preorder"].includes(btn.textContent.trim())
+        );
+
+        if (targetButton) {
+            if (targetButton.disabled) {
+                console.log("❌ Item is out of stock. Try again later.");
+            } else {
+                console.log("✅ Item is in stock! Selecting quantity...");
+                selectQuantityAndAddToCart(targetButton);
+            }
+        } else {
+            console.log("❌ 'Add to Cart' or 'Preorder' button not found.");
+        }
+    }
+
+    // ✅ **Select Quantity and Add to Cart / Preorder**
+    function selectQuantityAndAddToCart(targetButton) {
+        const quantityButton = document.querySelector("button[id^='select-']");
+
+        if (quantityButton) {
+            console.log("🔢 Clicking quantity dropdown...");
+            quantityButton.click();
+
+            setTimeout(() => {
+                const quantityOptions = Array.from(document.querySelectorAll("ul li a[aria-label]"));
+                const desiredOption = quantityOptions.find(option => option.textContent.trim() === TARGET_QUANTITY.toString());
+
+                if (desiredOption) {
+                    console.log(`✅ Selecting quantity: ${TARGET_QUANTITY}`);
+                    desiredOption.click();
+
+                    setTimeout(() => {
+                        console.log(`🛒 Clicking '${targetButton.textContent.trim()}' button...`);
+                        addToCartClicked = true;
+                        targetButton.click();
+                        setTimeout(redirectToCheckout, 1500); // Redirect to checkout
+                    }, 1000);
+                } else {
+                    console.log(`❌ Desired quantity (${TARGET_QUANTITY}) not found.`);
+                }
+            }, 1000);
+        } else {
+            console.log("❌ Quantity dropdown not found. Proceeding with default quantity.");
+            console.log(`🛒 Clicking '${targetButton.textContent.trim()}' button...`);
+            addToCartClicked = true;
+            targetButton.click();
+            setTimeout(redirectToCheckout, 1500); // Redirect to checkout
+        }
+    }
+
+    // ✅ **Redirect to Checkout**
+    function redirectToCheckout() {
+        if (!checkoutInitiated) {
+            console.log("🛒 Redirecting to checkout...");
+            checkoutInitiated = true;
+            window.location.href = "https://www.target.com/checkout";
+        }
+    }
+
+    // ✅ **Continuously Click "Place Order" Until Successful**
+    function continuouslyPlaceOrder() {
+        console.log("🛍️ Attempting to place order...");
+
+        let interval = setInterval(() => {
+            if (!window.location.href.includes("/checkout")) {
+                console.log("✅ Checkout complete! Redirect detected. Stopping retries.");
+                clearInterval(interval);
+                return;
+            }
+
+            const placeOrderButton = document.querySelector("[data-test='placeOrderButton']");
+
+            if (placeOrderButton) {
+                console.log("✅ Found 'Place your order' button.");
+                if (PLACE_ORDER) {
+                    if (TEST_MODE) {
+                        console.log("🛑 [TEST MODE] Simulating click on 'Place Order'.");
+                    } else {
+                        console.log("🚀 Clicking 'Place Order'...");
+                        placeOrderButton.click();
+                    }
+                } else {
+                    console.log("🛑 PLACE_ORDER is set to FALSE. Not clicking.");
+                    clearInterval(interval);
+                }
+            } else {
+                console.log("❌ Place order button not found, retrying...");
+            }
+        }, 1000);
+    }
+
+})();
